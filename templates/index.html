@@ -35,11 +35,30 @@ function fmt(v){if(v===null||v===undefined||v==='')return '—'; const n=Number(
 function nameOf(r){return r?.name || r?.title || r?.code || ('#'+r?.id)}
 function extractItems(j, keys){
  if(Array.isArray(j)) return j;
- for(const k of keys){ if(j && Array.isArray(j[k])) return j[k]; if(j && j[k] && typeof j[k]==='object') return Object.values(j[k]); }
- if(j && typeof j==='object'){
-   const vals=Object.values(j); if(vals.length && vals.every(x=>x && typeof x==='object')) return vals;
+ const seen=new Set();
+ function walk(x, depth=0){
+   if(!x || depth>6 || seen.has(x)) return [];
+   if(typeof x==='object') seen.add(x);
+   if(Array.isArray(x)) return x;
+   for(const k of keys){
+     if(x && Object.prototype.hasOwnProperty.call(x,k)){
+       const v=x[k];
+       if(Array.isArray(v)) return v;
+       if(v && typeof v==='object'){
+         const vals=Object.values(v);
+         if(vals.length && vals.every(z=>z && typeof z==='object')) return vals;
+         const rec=walk(v,depth+1); if(rec.length) return rec;
+       }
+     }
+   }
+   if(x && typeof x==='object'){
+     for(const v of Object.values(x)){
+       const rec=walk(v,depth+1); if(rec.length) return rec;
+     }
+   }
+   return [];
  }
- return [];
+ return walk(j);
 }
 async function getJson(url){const r=await fetch(url,{cache:'no-store'});let j=null;try{j=await r.json()}catch(e){throw Error('Сервер вернул некорректный JSON')};if(!r.ok)throw Error(j.error||`HTTP ${r.status}`);return j}
 function makeCombo(root,key){
@@ -55,12 +74,14 @@ function makeCombo(root,key){
 }
 const fromCombo=$('#fromCombo'),toCombo=$('#toCombo'); makeCombo(fromCombo,'from'); makeCombo(toCombo,'to');
 document.addEventListener('click',e=>{if(!e.target.closest('.combo'))document.querySelectorAll('.combo.open').forEach(x=>x.classList.remove('open'))});
-function render(){const q=search.value.trim().toLowerCase();let rows=lastRates.filter(r=>{const c=changers.get(String(r.changerId));return !q || (c?.name||'').toLowerCase().includes(q)}); if(!rows.length){table.innerHTML='<div class="empty">По выбранному направлению предложений не найдено.</div>';return} rows.sort((a,b)=>(Number(b.rankRate??b.rate)||0)-(Number(a.rankRate??a.rate)||0)); table.innerHTML=`<table class="table"><thead><tr><th>#</th><th>Обменник</th><th>Курс</th><th>Отдам</th><th>Получим</th><th>Резерв</th><th>Мин.</th><th>Макс.</th><th>Метки</th><th></th></tr></thead><tbody>${rows.map((r,i)=>{const c=changers.get(String(r.changerId))||{};return `<tr><td>${i+1}</td><td><strong>${esc(c.name||('ID '+r.changerId))}</strong></td><td class="rate">${fmt(r.rate)}</td><td>${fmt(r.in)}</td><td>${fmt(r.out)}</td><td class="reserve">${fmt(r.reserve)}</td><td>${fmt(r.min)}</td><td>${fmt(r.max)}</td><td>${Array.isArray(r.marks)?r.marks.map(m=>`<span class="small">${esc(m)}</span>`).join(', '):'—'}</td><td>${c.url?`<a class="link" href="${esc(c.url)}" target="_blank" rel="noopener">Перейти</a>`:'<span class="small">—</span>'}</td></tr>`}).join('')}</tbody></table>`}
+function render(){const q=search.value.trim().toLowerCase();let rows=lastRates.filter(r=>{const c=changers.get(String(r.changerId));return !q || (c?.name||'').toLowerCase().includes(q)}); if(!rows.length){table.innerHTML='<div class="empty">По выбранному направлению предложений не найдено.</div>';return} rows.sort((a,b)=>(Number(b.rankRate??b.rate)||0)-(Number(a.rankRate??a.rate)||0)); table.innerHTML=`<table class="table"><thead><tr><th>#</th><th>Обменник</th><th>Курс</th><th>Мин.</th><th>Макс.</th><th>Резерв</th><th>Мин.</th><th>Макс.</th><th>Метки</th><th></th></tr></thead><tbody>${rows.map((r,i)=>{const c=changers.get(String(r.changerId))||{};return `<tr><td>${i+1}</td><td><strong>${esc(c.name||('ID '+r.changerId))}</strong></td><td class="rate">${fmt(r.rate)}</td><td>${fmt(r.min)}</td><td>${fmt(r.max)}</td><td class="reserve">${fmt(r.reserve)}</td><td>${Array.isArray(r.marks)?r.marks.map(m=>`<span class="small">${esc(m)}</span>`).join(', '):'—'}</td><td>${c.url?`<a class="link" href="${esc(c.url)}" target="_blank" rel="noopener">Перейти</a>`:'<span class="small">—</span>'}</td></tr>`}).join('')}</tbody></table>`}
 async function init(){try{
  const [cj,chj]=await Promise.all([getJson('/api/currencies'),getJson('/api/changers')]);
- currencies=extractItems(cj,['items','currencies','data','results']).map(x=>({id:Number(x.id??x.currencyId),name:x.name??x.title??x.code,code:String(x.code??'')})).filter(x=>Number.isFinite(x.id)&&x.name).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
- extractItems(chj,['items','changers','data','results']).forEach(x=>changers.set(String(Number(x.id??x.changerId)),{id:Number(x.id??x.changerId),name:x.name??x.title??String(x.id),url:x.url??x.site??x.website??`https://www.bestchange.com/click.php?id=${Number(x.id??x.changerId)}`}));
- if(currencies.length<2) throw Error('BestChange вернул меньше двух валют.');
+ const currencyItems=extractItems(cj,['items','currencies','data','results','list']);
+ currencies=currencyItems.map(x=>({id:Number(x.id??x.currencyId??x.currency_id),name:x.name??x.title??x.viewname??x.code,code:String(x.code??'')})).filter(x=>Number.isFinite(x.id)&&x.name).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
+ const changerItems=extractItems(chj,['items','changers','data','results','list']);
+ changerItems.forEach(x=>{const id=Number(x.id??x.changerId??x.changer_id); if(Number.isFinite(id)) changers.set(String(id),{id,name:x.name??x.title??String(id),url:x.url??x.site??x.website??`https://www.bestchange.com/click.php?id=${id}`});});
+ if(currencies.length<2) throw Error(`Не удалось разобрать валюты: получено ${currencyItems.length}, распознано ${currencies.length}.`);
  selected.from=currencies.find(x=>x.code==='BTC')?.id ?? currencies[0].id; selected.to=currencies.find(x=>x.code==='USDTTRC20')?.id ?? currencies[1].id;
  fromCombo._setLabel(); toCombo._setLabel(); fromCombo._render(); toCombo._render();
  status.textContent=`Загружено валют: ${currencies.length}. Обменников: ${changers.size}.`;
