@@ -32,7 +32,7 @@ session.headers.update({
     "Accept": "application/json, */*",
     "Accept-Encoding": "gzip",
     "Connection": "keep-alive",
-    "User-Agent": "BestChange-Data-Monitor/4.0",
+    "User-Agent": "BestChange-Data-Monitor/5.1",
 })
 
 _cache: dict[str, tuple[float, Any]] = {}
