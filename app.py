@@ -326,49 +326,45 @@ def index():
 def currencies():
     def load():
         p, host = api_v2_get(f"/v2/{API_KEY}/currencies/{LANG}")
-        rows = p.get("items", []) if isinstance(p, dict) else p
-        if isinstance(rows, dict): rows = list(rows.values())
-        out=[]
-        for x in rows or []:
-            if not isinstance(x, dict): continue
-            cid=scalar_int(x.get("id") or x.get("currencyId"))
-            if cid is None: continue
-            name=str(x.get("name") or x.get("title") or x.get("code") or cid)
-            out.append({"id":cid,"name":name,"code":str(x.get("code") or ""),"groupId":x.get("groupId"),"raw":x})
-        return {"host":host,"items":out}
-    try: return jsonify(cached("currencies",load))
-    except Exception as e: return jsonify({"error":str(e)}),502
+        return {"host": host, "data": p}
+    try:
+        return jsonify(cached("currencies", load))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
 
 
 @app.get("/api/changers")
 def changers():
     def load():
         p, host = api_v2_get(f"/v2/{API_KEY}/changers/{LANG}")
-        rows = p.get("items", []) if isinstance(p, dict) else p
-        if isinstance(rows, dict): rows = list(rows.values())
-        out=[]
-        for x in rows or []:
-            if not isinstance(x, dict): continue
-            eid=scalar_int(x.get("id") or x.get("changerId"))
-            if eid is None: continue
-            out.append({"id":eid,"name":str(x.get("name") or x.get("title") or eid),"url":str(x.get("url") or x.get("site") or x.get("website") or f"https://www.bestchange.com/click.php?id={eid}"),"raw":x})
-        return {"host":host,"items":out}
-    try: return jsonify(cached("changers",load))
-    except Exception as e: return jsonify({"error":str(e)}),502
-
+        return {"host": host, "data": p}
+    try:
+        return jsonify(cached("changers", load))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
 
 @app.get("/api/rates")
-def rates():
-    a=request.args.get("from",type=int); b=request.args.get("to",type=int); c=request.args.get("city",type=int)
-    if not a or not b:
-        return jsonify({"error":"from and to are required"}),400
-    token=f"{a}-{b}" + (f"-{c}" if c else "")
+@app.get("/api/currencies")
+def currencies():
     def load():
-        p,host=api_v2_get(f"/v2/{API_KEY}/rates/{token}")
-        rows=normalize_v2_rows(p,a,b,c)
-        return {"from":a,"to":b,"city":c,"host":host,"source":"api-v2","count":len(rows),"rates":rows,"raw_type":type(p).__name__,"raw":p}
-    try: return jsonify(cached("rates:"+token,load))
-    except Exception as e: return jsonify({"error":str(e),"pair":token}),502
+        p, host = api_v2_get(f"/v2/{API_KEY}/currencies/{LANG}")
+        return {"host": host, "data": p}
+    try:
+        return jsonify(cached("currencies", load))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+
+@app.get("/api/changers")
+def changers():
+    def load():
+        p, host = api_v2_get(f"/v2/{API_KEY}/changers/{LANG}")
+        return {"host": host, "data": p}
+    try:
+        return jsonify(cached("changers", load))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
 
 @app.get("/api/presences")
 def presences():
