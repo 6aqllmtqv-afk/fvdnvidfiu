@@ -344,27 +344,49 @@ def changers():
         return jsonify({"error": str(e)}), 502
 
 @app.get("/api/rates")
-@app.get("/api/currencies")
-def currencies():
-    def load():
-        p, host = api_v2_get(f"/v2/{API_KEY}/currencies/{LANG}")
-        return {"host": host, "data": p}
+def rates():
+    a=request.args.get("from", type=int)
+    b=request.args.get("to", type=int)
+    c=request.args.get("city", type=int)
+    if not a or not b:
+        return jsonify({"error":"from and to are required"}),400
+    token=f"{a}-{b}" + (f"-{c}" if c else "")
     try:
-        return jsonify(cached("currencies", load))
+        p, host = api_v2_get(f"/v2/{API_KEY}/rates/{token}")
+        rows = normalize_v2_rows(p, a, b, c)
+        # The real v2 response is {"rates":{"A-B":[...]}}. Normalize directly too.
+        if not rows and isinstance(p, dict):
+            rate_map = p.get("rates")
+            if isinstance(rate_map, dict):
+                raw_rows = rate_map.get(token)
+                if isinstance(raw_rows, list):
+                    for item in raw_rows:
+                        if not isinstance(item, dict):
+                            continue
+                        changer_id = scalar_id(item.get("changer") if "changer" in item else item.get("changerId"))
+                        rate = scalar_num(item.get("rate"))
+                        rank_rate = scalar_num(item.get("rankrate") or item.get("rankRate"))
+                        if changer_id is None or rate is None:
+                            continue
+                        rows.append({
+                            "giveId": a, "getId": b, "changerId": changer_id,
+                            "rate": rate, "rankRate": rank_rate,
+                            "reserve": scalar_num(item.get("reserve")),
+                            "min": scalar_num(item.get("inmin") or item.get("min")),
+                            "max": scalar_num(item.get("inmax") or item.get("max")),
+                            "marks": item.get("marks") if isinstance(item.get("marks"), list) else [],
+                            "extra": item.get("extra"), "raw": item,
+                        })
+        # Deduplicate
+        unique=[]; seen=set()
+        for row in rows:
+            k=(row.get("changerId"), row.get("rate"), row.get("reserve"), row.get("min"), row.get("max"))
+            if k not in seen:
+                seen.add(k); unique.append(row)
+        unique.sort(key=lambda r: (r.get("rankRate") if r.get("rankRate") is not None else r.get("rate", 0)), reverse=True)
+        return jsonify({"pair":token,"from":a,"to":b,"city":c,"host":host,"source":"BestChange API v2","count":len(unique),"rates":unique})
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
-
-
-@app.get("/api/changers")
-def changers():
-    def load():
-        p, host = api_v2_get(f"/v2/{API_KEY}/changers/{LANG}")
-        return {"host": host, "data": p}
-    try:
-        return jsonify(cached("changers", load))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
-
+        return jsonify({"error":str(e),"pair":token}),502
 
 @app.get("/api/presences")
 def presences():
