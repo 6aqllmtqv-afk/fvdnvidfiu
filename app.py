@@ -317,6 +317,32 @@ def scalar_num(value):
         return None
 
 
+def listify_api_collection(payload, preferred=()):
+    if isinstance(payload, list):
+        return [x for x in payload if isinstance(x, dict)]
+    if not isinstance(payload, dict):
+        return []
+    for k in tuple(preferred) + ("items", "data", "result"):
+        v = payload.get(k)
+        if isinstance(v, list):
+            return [x for x in v if isinstance(x, dict)]
+        if isinstance(v, dict):
+            vals = list(v.values())
+            if vals and all(isinstance(x, dict) for x in vals):
+                return vals
+            nested = listify_api_collection(v, preferred)
+            if nested:
+                return nested
+    vals = list(payload.values())
+    direct = [x for x in vals if isinstance(x, dict)]
+    if direct and len(direct) == len(vals):
+        return direct
+    for v in vals:
+        nested = listify_api_collection(v, preferred)
+        if nested:
+            return nested
+    return []
+
 @app.get("/")
 def index():
     return render_template("index.html")
@@ -326,7 +352,7 @@ def index():
 def currencies():
     def load():
         p, host = api_v2_get(f"/v2/{API_KEY}/currencies/{LANG}")
-        return {"host": host, "data": p}
+        return {"host": host, "items": listify_api_collection(p, ("currencies",)), "raw": p}
     try:
         return jsonify(cached("currencies", load))
     except Exception as e:
@@ -337,7 +363,7 @@ def currencies():
 def changers():
     def load():
         p, host = api_v2_get(f"/v2/{API_KEY}/changers/{LANG}")
-        return {"host": host, "data": p}
+        return {"host": host, "items": listify_api_collection(p, ("changers",)), "raw": p}
     try:
         return jsonify(cached("changers", load))
     except Exception as e:
