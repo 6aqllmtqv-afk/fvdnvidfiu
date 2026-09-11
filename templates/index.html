@@ -1,73 +1,325 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BestChange Data Monitor</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BestChange — Exchange monitor</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='bc/main66.css') }}">
 <style>
-:root{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f5f7fb;color:#18202a}
-*{box-sizing:border-box}body{margin:0}.wrap{max-width:1200px;margin:0 auto;padding:28px 18px 50px}
-h1{font-size:28px;margin:0 0 8px}.sub{color:#667085;margin-bottom:24px}.panel{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:18px;box-shadow:0 3px 18px rgba(16,24,40,.05)}
-.controls{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end}.field label{display:block;font-size:12px;color:#667085;margin:0 0 7px}
-.combo{position:relative}.combo-btn{width:100%;height:44px;border:1px solid #d0d5dd;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between}.combo-btn .muted{color:#98a2b3}.combo-menu{display:none;position:absolute;z-index:50;left:0;right:0;top:50px;background:#fff;border:1px solid #d0d5dd;border-radius:10px;box-shadow:0 12px 32px rgba(16,24,40,.15);overflow:hidden}.combo.open .combo-menu{display:block}.combo-search{padding:10px;border-bottom:1px solid #eaecf0}.combo-search input{width:100%;height:38px;border:1px solid #d0d5dd;border-radius:8px;padding:0 10px;font-size:14px}.combo-list{max-height:320px;overflow:auto}.combo-option{padding:10px 12px;cursor:pointer;font-size:14px;display:flex;justify-content:space-between;gap:8px}.combo-option:hover{background:#f2f4f7}.combo-option.active{background:#f9fafb}.combo-option small{color:#98a2b3}.empty-options{padding:18px;color:#667085;font-size:13px}.btn{height:44px;border:0;border-radius:9px;padding:0 20px;font-weight:700;background:#111827;color:white;cursor:pointer}.btn:disabled{opacity:.5;cursor:wait}
-.status{margin-top:14px;color:#667085;font-size:13px}.error{color:#b42318}.meta{display:flex;gap:20px;flex-wrap:wrap;margin:22px 0 12px;font-size:13px;color:#667085}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:920px}.table th,.table td{padding:14px 12px;border-bottom:1px solid #eaecf0;text-align:left}.table th{font-size:12px;color:#667085;font-weight:600;background:#f9fafb}.table td{font-size:14px}.rate{font-weight:750}.reserve{white-space:nowrap}.link{color:#175cd3;text-decoration:none}.empty{padding:34px;text-align:center;color:#667085}.search{width:100%;height:40px;border:1px solid #d0d5dd;border-radius:8px;padding:0 11px;margin-top:12px}.small{font-size:12px;color:#98a2b3}.badge{display:inline-flex;padding:4px 8px;border-radius:999px;background:#ecfdf3;color:#027a48;font-size:11px;font-weight:700}
-@media(max-width:760px){.controls{grid-template-columns:1fr}.btn{width:100%}.combo-list{max-height:280px}}
+/* Small compatibility layer: keeps the visual language of the supplied BestChange snapshot
+   while making the monitor data-driven through our own API. */
+html,body{min-width:1000px}
+body{overflow-x:auto}
+a{cursor:pointer}
+.wrapper{position:relative}
+.header .logo img{object-fit:contain}
+.header .menu li a{cursor:pointer}
+.header .info{font-size:11px}
+.header .info dt,.header .info dd{font-size:11px}
+.content{min-height:760px}
+.monitor-shell{position:relative;margin-top:4px}
+.sidebar .rate{min-height:640px}
+#bc-sidebar-tabs{padding-top:10px}
+#bc-sidebar-tabs li{cursor:pointer}
+.sidebar-pane{display:none;padding-bottom:18px}
+.sidebar-pane.active{display:block}
+#curr_top{display:block!important;background:transparent!important}
+#curr_top ul{padding:0 5px 14px;margin:0;text-align:left;list-style:none}
+#curr_top li{list-style:none}
+#curr_top #head-line{font-size:12px;color:#fff;font-weight:bold;padding:3px 8px 7px}
+#curr_top a{display:block;color:#fff;text-decoration:none;padding:6px 8px;border-radius:3px;font-size:12px}
+#curr_top li.alt a{background:rgba(255,255,255,.10)}
+#curr_top a:hover{background:rgba(0,0,0,.12)}
+#curr_top .tor{display:inline-block;width:13px;height:13px;margin:0 5px;background:url('/static/bc/images/pictures.png') -30px -15px no-repeat;vertical-align:-2px}
+.tcr{float:right;font-size:11px;color:#fff;opacity:.9}
+#curr_tab{padding:0 5px;position:relative;bottom:-3px;z-index:1;text-align:left}
+#curr_tab table{table-layout:fixed;margin:0;color:#fff;width:290px;font-size:11px;user-select:none;border-collapse:collapse}
+#curr_tab table thead .cy_tab_head{height:30px;line-height:30px;width:135px;background:#668f24;border-radius:4px 4px 0 0;cursor:default}
+#curr_tab table thead .cy_tab_head.rc{background:#5a8420}
+#curr_tab .search_inner{position:relative}
+#curr_tab .search_inner input{width:100%;height:28px;line-height:28px;border:0;background:transparent;padding:0 27px 0 8px;color:#fff;font-size:14px;outline:none;box-sizing:border-box}
+#curr_tab .search_inner input::placeholder{color:rgba(255,255,255,.95)}
+#curr_tab .search_inner:after{content:'⌕';position:absolute;right:8px;top:4px;color:#fff;font-size:16px}
+.currency-grid{max-height:575px;overflow:auto;border-radius:0 0 5px 5px}
+.currency-grid table{width:290px;border-collapse:collapse;color:#333}
+.currency-grid td{width:50%;background:#8ab83a;border-top:1px solid rgba(255,255,255,.15);padding:0}
+.currency-grid td.alt{background:#82ae35}
+.currency-grid a{display:block;padding:5px 6px;text-decoration:none;color:#fff;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.currency-grid a:hover{background:rgba(0,0,0,.13)}
+.currency-grid a.selected{background:rgba(0,0,0,.16);font-weight:bold}
+.currency-grid a span{opacity:.8;margin-left:4px}
+.side-actions{padding:8px 10px 0;color:#fff;font-size:11px;text-align:left}
+.side-actions input{width:100%;height:26px;border:1px solid rgba(255,255,255,.35);border-radius:4px;background:#f8fbf2;padding:0 8px;box-sizing:border-box;color:#333}
+.current-direction{padding:9px 10px 0;color:#fff;font-size:11px;text-align:left}
+.current-direction strong{font-size:12px}
+.m-rate{position:relative;background:url('/static/bc/images/rate.png') no-repeat rgb(97,148,32);margin:0;text-align:center;padding-bottom:14px}
+.m-rate .top{height:7px}
+.m-rate .bottom{position:absolute;bottom:-8px;left:0;width:100%;height:8px;background:url('/static/bc/images/rate.png') right top no-repeat}
+.m-rate .above{height:26px;text-align:right;padding:2px 12px 0;color:#fff;font-size:11px}
+.m-rate .above span{margin-left:13px}
+.m-rate .g-tabs{padding-top:6px;padding-bottom:4px;margin:0}
+#direction-title{height:30px;line-height:30px;color:#fff;font-size:15px;font-weight:bold;text-align:left;padding:0 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#rate-status{font-size:11px;color:#eaf4df;text-align:left;padding:0 12px 7px}
+#rates-card{background:#f9f9f7;margin:0 5px;border-radius:3px;overflow:hidden}
+#content_table{width:100%;margin:0;font-size:11px;border-collapse:collapse;background:#f9f9f7}
+#content_table thead td{height:30px;font-size:13px;font-weight:bold;background:#e6e6e2;color:#333;border-bottom:1px solid #c8c8c8}
+#content_table thead .info{width:28px;text-align:center}
+#content_table thead .changer{width:26%}
+#content_table thead .from,#content_table thead .to{width:22%}
+#content_table thead .reserve{width:17%}
+#content_table thead .reviews{width:10%;text-align:center}
+#content_table tbody td{padding:7px 6px;border-bottom:1px solid #deded9;color:#333;background:#fff;vertical-align:middle}
+#content_table tbody tr:nth-child(even) td{background:#f5f5f2}
+#content_table tbody tr:hover td{background:#edf3e5}
+#content_table .ir{width:28px;text-align:center;padding:0}
+#content_table .io{display:inline-block;width:22px;height:15px;background:url('/static/bc/images/pictures.png') -30px 0 no-repeat;margin:0}
+#content_table .changer-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#content_table .changer-name{color:#006ead;text-decoration:underline}
+#content_table .changer-name:hover{text-decoration:none}
+#content_table .subtle{color:#888}
+.rate-main{font-weight:bold;color:#111}
+.mini-badge{display:inline-block;padding:1px 4px;margin-left:3px;border-radius:2px;background:#eee;color:#777;font-size:9px}
+.mini-badge.green{background:#dfead4;color:#4a6f2c}
+.review-link{color:#006ead;text-decoration:underline}
+#monitor-empty{padding:40px;color:#999;text-align:center;background:#fff}
+#loading-row{padding:30px;text-align:center;color:#777;background:#fff}
+/* custom select menu, visually aligned with the green sidebar */
+#curr_list_like{display:none;background:#8ab83a;margin:0 5px 0;padding:10px;border-radius:4px;color:#fff}
+#curr_list_like .select-title{font-size:12px;font-weight:bold;margin-bottom:5px}
+.custom-select{position:relative;margin-bottom:8px}
+.custom-select button{width:100%;height:27px;text-align:left;border:0;background:#f6f6f2;border-radius:4px;padding:0 8px;color:#333;font-size:11px;cursor:pointer}
+.custom-select .menu{display:none;position:absolute;z-index:1000;left:0;right:0;top:30px;max-height:330px;overflow:auto;background:#fff;border:1px solid #a3a3a3;box-shadow:0 4px 12px rgba(0,0,0,.25);border-radius:3px;color:#333}
+.custom-select.open .menu{display:block}
+.custom-select .menu-search{padding:7px;border-bottom:1px solid #ddd;background:#f7f7f7}
+.custom-select .menu-search input{width:100%;height:24px;border:1px solid #bbb;padding:0 6px;box-sizing:border-box}
+.custom-select .opt{padding:5px 8px;cursor:pointer;font-size:11px}
+.custom-select .opt:hover{background:#e8efde}
+.custom-select .opt.active{font-weight:bold;background:#dfead4}
+.sidebar .rate .bottom{bottom:-8px}
+#main-content-wrap{float:right;width:665px;padding:5px 15px 20px 0;box-sizing:border-box}
+#main-left{float:left;width:300px;padding:5px 0 20px 5px;box-sizing:border-box}
+.clearfix{clear:both}
+#main-content-wrap .panel-meta{height:30px;color:#777;font-size:11px;text-align:left;padding:4px 8px;box-sizing:border-box}
+.direction-switch{float:right;color:#777}
+.direction-switch a{color:#006ead;text-decoration:underline;margin-left:8px}
+#details-pop{display:none}
+@media(max-width:1020px){html,body{min-width:1000px}}
 </style>
 </head>
-<body><div class="wrap">
-<h1>Exchange monitor</h1><div class="sub">Выбери направление — ниже появятся все доступные предложения BestChange по этой паре.</div>
-<div class="panel">
-<div class="controls">
-<div class="field"><label>Отдаю</label><div class="combo" id="fromCombo"><button class="combo-btn" type="button"><span class="label muted">Загрузка…</span><span>⌄</span></button><div class="combo-menu"><div class="combo-search"><input type="text" placeholder="Поиск валюты…"></div><div class="combo-list"></div></div></div></div>
-<div class="field"><label>Получаю</label><div class="combo" id="toCombo"><button class="combo-btn" type="button"><span class="label muted">Загрузка…</span><span>⌄</span></button><div class="combo-menu"><div class="combo-search"><input type="text" placeholder="Поиск валюты…"></div><div class="combo-list"></div></div></div></div>
-<button class="btn" id="load">Показать обменники</button>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <div class="logo"><img src="{{ url_for('static', filename='bc/images/logo.png') }}" alt="BestChange"></div>
+    <ul class="menu menu-wi">
+      <li class="active"><span><a>Exchanger monitor</a></span></li>
+      <li><span><a>Exchangers</a></span></li>
+      <li><span><a>Check address</a></span></li>
+      <li><span><a>Referrals</a></span></li>
+      <li><span><a>Intro</a></span></li>
+      <li><span><a>FAQ</a></span></li>
+      <li><span><a>Contacts</a></span></li>
+    </ul>
+    <dl class="info" id="headinfo">
+      <dt>Exchange rates:</dt><dd id="count-directions">—</dd>
+      <dt>Exchangers:</dt><dd id="count-changers">—</dd>
+      <dt>Updated:</dt><dd id="updated-time">—</dd>
+    </dl>
+  </div>
+
+  <div class="c-block">
+    <div class="c-wrap"><div class="c-inner">
+      <div id="main-left">
+        <div class="sidebar">
+          <div class="rate">
+            <ul class="tabs" id="bc-sidebar-tabs">
+              <li class="active" data-pane="table"><a><span>Table</span></a><i></i></li>
+              <li data-pane="list"><a><span>List</span></a><i></i></li>
+              <li data-pane="popular"><a><span>Popular</span></a><i></i></li>
+            </ul>
+
+            <div class="sidebar-pane active" id="pane-table">
+              <div id="curr_tab">
+                <table>
+                  <thead><tr>
+                    <td class="cy_tab_head lc"><div class="search_inner"><input id="side-from-search" placeholder="Give" autocomplete="off"></div></td>
+                    <td class="cy_tab_head rc"><div class="search_inner"><input id="side-to-search" placeholder="Get" autocomplete="off"></div></td>
+                  </tr></thead>
+                </table>
+              </div>
+              <div class="currency-grid">
+                <table><tbody id="currency-grid-body"></tbody></table>
+              </div>
+              <div class="side-actions">
+                <input id="exchange-search" placeholder="Search exchanger…">
+              </div>
+              <div class="current-direction" id="side-direction">—</div>
+            </div>
+
+            <div class="sidebar-pane" id="pane-list">
+              <div class="side-actions" style="padding-top:20px">
+                <div style="font-size:13px;margin-bottom:9px">All currencies</div>
+                <input id="all-currency-search" placeholder="Search currency…">
+                <div id="all-currency-list" style="margin-top:7px;max-height:520px;overflow:auto"></div>
+              </div>
+            </div>
+
+            <div class="sidebar-pane" id="pane-popular">
+              <div id="curr_top">
+                <ul id="popular-list"><li id="head-line">Popular directions</li></ul>
+              </div>
+            </div>
+
+            <div class="bottom"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="main-content-wrap">
+        <div class="content" style="float:none;width:auto;padding:0;">
+          <div class="m-rate">
+            <div class="top"></div>
+            <div class="above">
+              <span>↔ History</span>
+              <span>⚙ Settings</span>
+            </div>
+            <ul class="tabs g-tabs">
+              <li class="active"><a><span>Exchangers</span></a><i></i></li>
+              <li><a><span>Statistics</span></a><i></i></li>
+            </ul>
+            <div id="direction-title">Loading…</div>
+            <div id="rate-status">Loading rates…</div>
+            <div id="rates-card">
+              <table id="content_table">
+                <thead><tr>
+                  <td class="info"></td>
+                  <td class="changer">Exchanger</td>
+                  <td class="from">Give</td>
+                  <td class="to">Get</td>
+                  <td class="ar reserve">Reserve</td>
+                  <td class="reviews">Reviews</td>
+                </tr></thead>
+                <tbody id="rates-body"><tr><td colspan="6"><div id="loading-row">Loading…</div></td></tr></tbody>
+              </table>
+            </div>
+            <div class="bottom"></div>
+          </div>
+          <div class="panel-meta">
+            <span>Source: BestChange API</span>
+            <span class="direction-switch"><a id="reverse-link">Reverse direction</a></span>
+          </div>
+        </div>
+      </div>
+      <div class="clearfix"></div>
+    </div></div>
+  </div>
 </div>
-<input class="search" id="search" placeholder="Фильтр по названию обменника…">
-<div class="status" id="status">Загрузка списка валют…</div>
-</div>
-<div class="meta" id="meta"></div>
-<div class="panel table-wrap"><div id="table"><div class="empty">Выбери валюты и нажми «Показать обменники».</div></div></div>
-</div>
+
 <script>
-const $=s=>document.querySelector(s); let currencies=[], changers=new Map(), lastRates=[]; let selected={from:null,to:null};
-const load=$('#load'),status=$('#status'),table=$('#table'),meta=$('#meta'),search=$('#search');
+const $=s=>document.querySelector(s);
+let currencies=[], changers=new Map(), rates=[];
+let selected={from:null,to:null};
+let activePane='table';
+
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function fmt(v){if(v===null||v===undefined||v==='')return '—'; const n=Number(v); return Number.isFinite(n)?n.toLocaleString('ru-RU',{maximumFractionDigits:12}):esc(v)}
-function nameOf(r){return r?.name || r?.title || r?.code || ('#'+r?.id)}
-function extractItems(j, keys){
- if(Array.isArray(j)) return j;
- if(!j || typeof j!=='object') return [];
- for(const k of keys){
-   const v=j[k];
-   if(Array.isArray(v)) return v;
-   if(v && typeof v==='object'){ const n=extractItems(v,keys); if(n.length) return n; }
- }
- for(const v of Object.values(j)){ const n=extractItems(v,keys); if(n.length) return n; }
- return [];
+function num(v){const n=Number(v);return Number.isFinite(n)?n:null}
+function fmt(v, max=8){const n=num(v); if(n===null)return '—'; return n.toLocaleString('ru-RU',{maximumFractionDigits:max})}
+function currency(id){return currencies.find(c=>c.id===Number(id))||null}
+function cname(id){const c=currency(id);return c?c.name:('#'+id)}
+function code(id){const c=currency(id);return c?.code||''}
+async function getJson(url){const r=await fetch(url,{cache:'no-store'});let j;try{j=await r.json()}catch(e){throw Error('Invalid JSON from server')};if(!r.ok)throw Error(j.error||('HTTP '+r.status));return j}
+
+function renderCurrencyGrid(){
+  const fromQ=($('#side-from-search').value||'').trim().toLowerCase();
+  const toQ=($('#side-to-search').value||'').trim().toLowerCase();
+  const max=Math.ceil(currencies.length/2);
+  const left=currencies.filter(c=>!fromQ||c.name.toLowerCase().includes(fromQ)||c.code.toLowerCase().includes(fromQ));
+  const right=currencies.filter(c=>!toQ||c.name.toLowerCase().includes(toQ)||c.code.toLowerCase().includes(toQ));
+  const rows=[];
+  for(let i=0;i<Math.max(left.length,right.length);i++){
+    const a=left[i], b=right[i];
+    rows.push(`<tr><td class="${i%2?'alt':''}">${a?`<a class="${selected.from===a.id?'selected':''}" data-pick="from" data-id="${a.id}">${esc(a.name)} <span>${esc(a.code)}</span></a>`:''}</td><td class="${i%2?'alt':''}">${b?`<a class="${selected.to===b.id?'selected':''}" data-pick="to" data-id="${b.id}">${esc(b.name)} <span>${esc(b.code)}</span></a>`:''}</td></tr>`)
+  }
+  $('#currency-grid-body').innerHTML=rows.join('')||'<tr><td colspan="2" style="padding:20px;text-align:center">No currencies</td></tr>';
+  document.querySelectorAll('[data-pick]').forEach(el=>el.onclick=()=>{selected[el.dataset.pick]=Number(el.dataset.id); syncSelected(); renderCurrencyGrid(); loadRates();});
 }
-async function getJson(url){const r=await fetch(url,{cache:'no-store'});let j=null;try{j=await r.json()}catch(e){throw Error('Сервер вернул некорректный JSON')};if(!r.ok)throw Error(j.error||`HTTP ${r.status}`);return j}
-function makeCombo(root,key){
- const btn=root.querySelector('.combo-btn'), label=root.querySelector('.label'), input=root.querySelector('.combo-search input'), list=root.querySelector('.combo-list');
- function render(filter=''){
-   const q=filter.trim().toLowerCase(); const arr=currencies.filter(x=>!q || nameOf(x).toLowerCase().includes(q) || String(x.code||'').toLowerCase().includes(q));
-   list.innerHTML=arr.length?arr.map(x=>`<div class="combo-option ${selected[key]===x.id?'active':''}" data-id="${x.id}"><span>${esc(nameOf(x))}</span><small>${esc(x.code||'')}</small></div>`).join(''):`<div class="empty-options">Ничего не найдено</div>`;
-   list.querySelectorAll('.combo-option').forEach(el=>el.onclick=()=>{selected[key]=Number(el.dataset.id); const x=currencies.find(c=>c.id===selected[key]); label.textContent=nameOf(x); label.classList.remove('muted'); root.classList.remove('open'); render();});
- }
- btn.onclick=()=>{document.querySelectorAll('.combo.open').forEach(x=>x!==root&&x.classList.remove('open')); root.classList.toggle('open'); if(root.classList.contains('open')){input.value='';render();input.focus()}};
- input.oninput=()=>render(input.value);
- root._render=render; root._setLabel=()=>{const x=currencies.find(c=>c.id===selected[key]);if(x){label.textContent=nameOf(x);label.classList.remove('muted')}};
+function renderAllCurrencyList(){
+  const q=($('#all-currency-search').value||'').trim().toLowerCase();
+  const arr=currencies.filter(c=>!q||c.name.toLowerCase().includes(q)||c.code.toLowerCase().includes(q));
+  $('#all-currency-list').innerHTML=arr.map(c=>`<div style="padding:5px 7px;border-bottom:1px solid rgba(255,255,255,.12);cursor:pointer" data-id="${c.id}" data-pick2="1"><b>${esc(c.code)}</b> <span>${esc(c.name)}</span></div>`).join('');
+  document.querySelectorAll('[data-pick2]').forEach(el=>el.onclick=()=>{selected.from=Number(el.dataset.id);syncSelected();loadRates();});
 }
-const fromCombo=$('#fromCombo'),toCombo=$('#toCombo'); makeCombo(fromCombo,'from'); makeCombo(toCombo,'to');
-document.addEventListener('click',e=>{if(!e.target.closest('.combo'))document.querySelectorAll('.combo.open').forEach(x=>x.classList.remove('open'))});
-function render(){const q=search.value.trim().toLowerCase();let rows=lastRates.filter(r=>{const c=changers.get(String(r.changerId));return !q || (c?.name||'').toLowerCase().includes(q)}); if(!rows.length){table.innerHTML='<div class="empty">По выбранному направлению предложений не найдено.</div>';return} rows.sort((a,b)=>(Number(b.rankRate??b.rate)||0)-(Number(a.rankRate??a.rate)||0)); table.innerHTML=`<table class="table"><thead><tr><th>#</th><th>Обменник</th><th>Курс</th><th>Отдам</th><th>Получим</th><th>Резерв</th><th>Мин.</th><th>Макс.</th><th>Метки</th><th></th></tr></thead><tbody>${rows.map((r,i)=>{const c=changers.get(String(r.changerId))||{};return `<tr><td>${i+1}</td><td><strong>${esc(c.name||('ID '+r.changerId))}</strong></td><td class="rate">${fmt(r.rate)}</td><td>${fmt(r.in)}</td><td>${fmt(r.out)}</td><td class="reserve">${fmt(r.reserve)}</td><td>${fmt(r.min)}</td><td>${fmt(r.max)}</td><td>${Array.isArray(r.marks)?r.marks.map(m=>`<span class="small">${esc(m)}</span>`).join(', '):'—'}</td><td>${c.url?`<a class="link" href="${esc(c.url)}" target="_blank" rel="noopener">Перейти</a>`:'<span class="small">—</span>'}</td></tr>`}).join('')}</tbody></table>`}
-async function init(){try{
- const [cj,chj]=await Promise.all([getJson('/api/currencies'),getJson('/api/changers')]);
- currencies=extractItems(cj,['items','currencies','data','results']).map(x=>({id:Number(x.id??x.currencyId),name:x.name??x.title??x.code,code:String(x.code??'')})).filter(x=>Number.isFinite(x.id)&&x.name).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
- extractItems(chj,['items','changers','data','results']).forEach(x=>changers.set(String(Number(x.id??x.changerId)),{id:Number(x.id??x.changerId),name:x.name??x.title??String(x.id),url:x.url??x.site??x.website??`https://www.bestchange.com/click.php?id=${Number(x.id??x.changerId)}`}));
- if(currencies.length<2) throw Error('BestChange вернул меньше двух валют.');
- selected.from=currencies.find(x=>x.code==='BTC')?.id ?? currencies[0].id; selected.to=currencies.find(x=>x.code==='USDTTRC20')?.id ?? currencies[1].id;
- fromCombo._setLabel(); toCombo._setLabel(); fromCombo._render(); toCombo._render();
- status.textContent=`Загружено валют: ${currencies.length}. Обменников: ${changers.size}.`;
- }catch(e){status.textContent=e.message;status.className='status error';load.disabled=true}}
-load.onclick=async()=>{load.disabled=true;status.className='status';status.textContent='Получаю актуальные предложения…';meta.innerHTML='';try{if(selected.from==null||selected.to==null)throw Error('Выбери обе валюты.'); if(selected.from===selected.to)throw Error('Выбери разные валюты.');const j=await getJson(`/api/rates?from=${selected.from}&to=${selected.to}`);lastRates=Array.isArray(j.rates)?j.rates:[];const f=currencies.find(x=>x.id===selected.from),t=currencies.find(x=>x.id===selected.to);meta.innerHTML=`<span><b>${esc(nameOf(f))}</b> → <b>${esc(nameOf(t))}</b></span><span><span class="badge">${lastRates.length} предложений</span></span><span>Источник: ${esc(j.source||j.host||'BestChange')}</span>`;render();status.textContent=`Обновлено: ${new Date().toLocaleTimeString('ru-RU')}`}catch(e){status.textContent=e.message;status.className='status error';table.innerHTML='<div class="empty">Не удалось получить курсы.</div>'}finally{load.disabled=false}};
-search.oninput=render; init();
-</script></body></html>
+function renderPopular(){
+  const popular=[['USDTTRC20','MNGUSD'],['USDTTRC20','CASHUSD'],['USDTTRC20','ALPCNY'],['CASHUSD','USDTTRC20'],['USDTTRC20','PPUSD'],['USDTTRC20','CASHEUR'],['USDTBEP20','MNGUSD'],['USDTTRC20','BTCLN'],['USDTBEP20','BTCLN']];
+  const getByCode=x=>currencies.find(c=>c.code===x);
+  $('#popular-list').innerHTML='<li id="head-line">Popular directions</li>'+popular.map(([a,b])=>{const x=getByCode(a),y=getByCode(b);if(!x||!y)return '';return `<li><a data-pair="${x.id}-${y.id}">${esc(x.name.replace(/ \(.*/,''))} <span class="tor"></span> ${esc(y.name.replace(/ \(.*/,''))}</a></li>`}).join('');
+  document.querySelectorAll('[data-pair]').forEach(el=>el.onclick=e=>{e.preventDefault();const [a,b]=el.dataset.pair.split('-').map(Number);selected={from:a,to:b};syncSelected();renderCurrencyGrid();loadRates();});
+}
+function syncSelected(){
+  const f=currency(selected.from),t=currency(selected.to);
+  $('#side-direction').innerHTML=(f&&t)?`<strong>${esc(f.name)}</strong><br>→ ${esc(t.name)}`:'—';
+  $('#direction-title').textContent=(f&&t)?`${f.name} → ${t.name}`:'Select direction';
+}
+function setPane(p){
+  activePane=p;
+  document.querySelectorAll('#bc-sidebar-tabs li').forEach(x=>x.classList.toggle('active',x.dataset.pane===p));
+  document.querySelectorAll('.sidebar-pane').forEach(x=>x.classList.toggle('active',x.id==='pane-'+p));
+}
+async function loadRates(){
+  if(selected.from==null||selected.to==null||selected.from===selected.to)return;
+  const f=currency(selected.from),t=currency(selected.to);
+  $('#direction-title').textContent=`${f.name} → ${t.name}`;
+  $('#rate-status').textContent='Updating rates…';
+  $('#rates-body').innerHTML='<tr><td colspan="6"><div id="loading-row">Loading exchange offers…</div></td></tr>';
+  try{
+    const j=await getJson(`/api/rates?from=${selected.from}&to=${selected.to}`);
+    rates=Array.isArray(j.rates)?j.rates:[];
+    renderRates();
+    $('#rate-status').textContent=`${rates.length} exchangers · updated ${new Date().toLocaleTimeString('ru-RU')}`;
+    $('#updated-time').textContent=new Date().toLocaleTimeString('ru-RU');
+  }catch(e){
+    rates=[]; $('#rates-body').innerHTML=`<tr><td colspan="6"><div id="monitor-empty">${esc(e.message)}</div></td></tr>`; $('#rate-status').textContent='Unable to load rates';
+  }
+}
+function renderRates(){
+  const q=($('#exchange-search').value||'').trim().toLowerCase();
+  const rows=rates.filter(r=>{const c=changers.get(String(r.changerId));return !q||(c?.name||'').toLowerCase().includes(q)}).sort((a,b)=>(Number(a.rankRate??a.rate)||0)-(Number(b.rankRate??b.rate)||0)).reverse();
+  if(!rows.length){$('#rates-body').innerHTML='<tr><td colspan="6"><div id="monitor-empty">No exchange offers for this direction.</div></td></tr>';return}
+  $('#rates-body').innerHTML=rows.map((r,i)=>{
+    const c=changers.get(String(r.changerId))||{};
+    const marks=Array.isArray(r.marks)?r.marks:[];
+    const badges=marks.map(m=>`<span class="mini-badge ${m==='floating'?'green':''}">${esc(m)}</span>`).join('');
+    return `<tr>
+      <td class="ir"><span class="io"></span></td>
+      <td class="changer-cell"><a class="changer-name" href="${esc(c.url||'#')}" target="_blank" rel="noopener nofollow">${esc(c.name||('Exchanger #'+r.changerId))}</a>${badges}</td>
+      <td><div class="fs">1 <small>${esc(f?.code||code(r.giveId||selected.from))}</small></div></td>
+      <td><span class="rate-main">${fmt(r.rate,12)}</span> <small>${esc(t?.code||code(r.getId||selected.to))}</small></td>
+      <td class="ar">${fmt(r.reserve,4)}</td>
+      <td class="rw" style="text-align:center"><span class="review-link">${r.reviews==null?'—':fmt(r.reviews,0)}</span></td>
+    </tr>`
+  }).join('');
+  $('#count-directions').textContent=rates.length?rates.length:'—';
+}
+
+let f=null,t=null;
+async function init(){
+  try{
+    const [cj,chj]=await Promise.all([getJson('/api/currencies'),getJson('/api/changers')]);
+    currencies=(Array.isArray(cj.items)?cj.items:[]).map(x=>({id:Number(x.id??x.currencyId),name:String(x.name??x.title??x.code),code:String(x.code??'')})).filter(x=>Number.isFinite(x.id)&&x.name).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
+    (Array.isArray(chj.items)?chj.items:[]).forEach(x=>{const id=Number(x.id??x.changerId);if(Number.isFinite(id))changers.set(String(id),{id,name:String(x.name??x.title??id),url:String(x.url??x.site??`https://www.bestchange.com/click.php?id=${id}`)})});
+    $('#count-changers').textContent=changers.size||'—';
+    if(currencies.length<2)throw Error('BestChange did not return enough currencies.');
+    selected.from=currencies.find(x=>x.code==='BTC')?.id??currencies[0].id;
+    selected.to=currencies.find(x=>x.code==='USDTTRC20')?.id??currencies.find(x=>x.id!==selected.from)?.id;
+    syncSelected();renderCurrencyGrid();renderAllCurrencyList();renderPopular();
+    $('#side-from-search').oninput=renderCurrencyGrid;$('#side-to-search').oninput=renderCurrencyGrid;$('#all-currency-search').oninput=renderAllCurrencyList;$('#exchange-search').oninput=renderRates;
+    $('#reverse-link').onclick=()=>{[selected.from,selected.to]=[selected.to,selected.from];syncSelected();renderCurrencyGrid();loadRates()};
+    document.querySelectorAll('#bc-sidebar-tabs li').forEach(li=>li.onclick=()=>setPane(li.dataset.pane));
+    await loadRates();
+  }catch(e){
+    $('#rate-status').textContent=e.message; $('#rates-body').innerHTML=`<tr><td colspan="6"><div id="monitor-empty">${esc(e.message)}</div></td></tr>`;
+  }
+}
+init();
+</script>
+</body>
+</html>
