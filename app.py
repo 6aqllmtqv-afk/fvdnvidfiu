@@ -325,49 +325,36 @@ def index():
 @app.get("/api/currencies")
 def currencies():
     def load():
-        try:
-            p, host = api_v2_get(f"/v2/{API_KEY}/currencies/{LANG}")
-            # Keep the API's own rich currency data.
-            rows = p.get("items", []) if isinstance(p, dict) else p
-            if isinstance(rows, dict): rows = list(rows.values())
-            out = []
-            for x in rows or []:
-                if not isinstance(x, dict): continue
-                cid = scalar_int(x.get("id") or x.get("currencyId"))
-                if cid is None: continue
-                name = x.get("name") or x.get("title") or x.get("code") or str(cid)
-                out.append({"id": cid, "name": str(name), "code": str(x.get("code") or ""), "groupId": x.get("groupId"), "raw": x})
-            return {"host": host, "items": out}
-        except Exception:
-            blob, host = info_zip_get()
-            return {"host": host, "items": [{**x, "code": "", "raw": x} for x in parse_info_currencies(blob)]}
-    try:
-        return jsonify(cached("currencies", load))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        p, host = api_v2_get(f"/v2/{API_KEY}/currencies/{LANG}")
+        rows = p.get("items", []) if isinstance(p, dict) else p
+        if isinstance(rows, dict): rows = list(rows.values())
+        out=[]
+        for x in rows or []:
+            if not isinstance(x, dict): continue
+            cid=scalar_int(x.get("id") or x.get("currencyId"))
+            if cid is None: continue
+            name=str(x.get("name") or x.get("title") or x.get("code") or cid)
+            out.append({"id":cid,"name":name,"code":str(x.get("code") or ""),"groupId":x.get("groupId"),"raw":x})
+        return {"host":host,"items":out}
+    try: return jsonify(cached("currencies",load))
+    except Exception as e: return jsonify({"error":str(e)}),502
 
 
 @app.get("/api/changers")
 def changers():
     def load():
-        try:
-            p, host = api_v2_get(f"/v2/{API_KEY}/changers/{LANG}")
-            rows = p.get("items", []) if isinstance(p, dict) else p
-            if isinstance(rows, dict): rows = list(rows.values())
-            out=[]
-            for x in rows or []:
-                if not isinstance(x, dict): continue
-                eid=scalar_int(x.get("id") or x.get("changerId"))
-                if eid is None: continue
-                out.append({"id":eid,"name":str(x.get("name") or x.get("title") or eid),"url":str(x.get("url") or x.get("site") or x.get("website") or f"https://www.bestchange.com/click.php?id={eid}"),"raw":x})
-            return {"host":host,"items":out}
-        except Exception:
-            blob,host=info_zip_get()
-            return {"host":host,"items":parse_info_changers(blob)}
-    try:
-        return jsonify(cached("changers",load))
-    except Exception as e:
-        return jsonify({"error":str(e)}),502
+        p, host = api_v2_get(f"/v2/{API_KEY}/changers/{LANG}")
+        rows = p.get("items", []) if isinstance(p, dict) else p
+        if isinstance(rows, dict): rows = list(rows.values())
+        out=[]
+        for x in rows or []:
+            if not isinstance(x, dict): continue
+            eid=scalar_int(x.get("id") or x.get("changerId"))
+            if eid is None: continue
+            out.append({"id":eid,"name":str(x.get("name") or x.get("title") or eid),"url":str(x.get("url") or x.get("site") or x.get("website") or f"https://www.bestchange.com/click.php?id={eid}"),"raw":x})
+        return {"host":host,"items":out}
+    try: return jsonify(cached("changers",load))
+    except Exception as e: return jsonify({"error":str(e)}),502
 
 
 @app.get("/api/rates")
@@ -376,49 +363,35 @@ def rates():
     if not a or not b:
         return jsonify({"error":"from and to are required"}),400
     token=f"{a}-{b}" + (f"-{c}" if c else "")
-    key=f"rates:{token}"
-
     def load():
-        # v2 first, with the official aggregate export as fallback. The latter
-        # is documented by BestChange and contains all exchanger-rate rows.
-        v2_error = None
-        try:
-            p,host=api_v2_get(f"/v2/{API_KEY}/rates/{token}")
-            rows=normalize_v2_rows(p,a,b,c)
-            if rows:
-                return {"from":a,"to":b,"city":c,"host":host,"source":"api-v2","count":len(rows),"rates":rows,"raw_type":type(p).__name__}
-            v2_error="v2 returned no recognizable rate rows"
-        except Exception as exc:
-            v2_error=str(exc)
+        p,host=api_v2_get(f"/v2/{API_KEY}/rates/{token}")
+        rows=normalize_v2_rows(p,a,b,c)
+        return {"from":a,"to":b,"city":c,"host":host,"source":"api-v2","count":len(rows),"rates":rows,"raw_type":type(p).__name__,"raw":p}
+    try: return jsonify(cached("rates:"+token,load))
+    except Exception as e: return jsonify({"error":str(e),"pair":token}),502
 
-        blob,host=info_zip_get()
-        rows=parse_info_rates(blob,a,b,c)
-        return {"from":a,"to":b,"city":c,"host":host,"source":"official-info.zip","count":len(rows),"rates":rows,"fallback":v2_error}
-
+@app.get("/api/presences")
+def presences():
+    a=request.args.get("from",type=int); b=request.args.get("to",type=int); c=request.args.get("city",type=int)
+    if not a or not b: return jsonify({"error":"from and to are required"}),400
+    token=f"{a}-{b}" + (f"-{c}" if c else "")
     try:
-        return jsonify(cached(key,load))
+        p,host=api_v2_get(f"/v2/{API_KEY}/presences/{token}")
+        return jsonify({"from":a,"to":b,"city":c,"host":host,"raw":p})
     except Exception as e:
         return jsonify({"error":str(e),"pair":token}),502
-
 
 @app.get("/api/debug/rates")
 def debug_rates():
     a=request.args.get("from",type=int); b=request.args.get("to",type=int); c=request.args.get("city",type=int)
-    if not a or not b:
-        return jsonify({"error":"from and to are required"}),400
+    if not a or not b: return jsonify({"error":"from and to are required"}),400
     token=f"{a}-{b}" + (f"-{c}" if c else "")
     result={"pair":token}
     try:
         p,host=api_v2_get(f"/v2/{API_KEY}/rates/{token}")
-        result.update({"v2_host":host,"v2_type":type(p).__name__,"v2_sample":(p[:2] if isinstance(p,list) else p),"v2_normalized_count":len(normalize_v2_rows(p,a,b,c))})
+        result.update({"host":host,"type":type(p).__name__,"keys":list(p.keys())[:50] if isinstance(p,dict) else [],"normalized_count":len(normalize_v2_rows(p,a,b,c)),"sample":(p[:3] if isinstance(p,list) else p)})
     except Exception as e:
-        result["v2_error"]=str(e)
-    try:
-        blob,host=info_zip_get()
-        rows=parse_info_rates(blob,a,b,c)
-        result.update({"info_host":host,"info_count":len(rows),"info_sample":rows[:3]})
-    except Exception as e:
-        result["info_error"]=str(e)
+        result["error"]=str(e)
     return jsonify(result)
 
 
